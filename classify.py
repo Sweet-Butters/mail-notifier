@@ -30,15 +30,23 @@ def _get_client() -> genai.Client:
     return _client
 
 
+def _parse_senders(raw: str) -> list[str]:
+    return [
+        line.strip()
+        for line in raw.splitlines()
+        if line.strip() and not line.strip().startswith("#")
+    ]
+
+
 def _load_senders() -> list[str]:
+    """우선순위: 환경변수 IMPORTANT_SENDERS (GH Actions/secret) > 로컬 senders.txt 파일."""
+    env_val = os.environ.get("IMPORTANT_SENDERS", "").strip()
+    if env_val:
+        return _parse_senders(env_val)
     path = Path(SENDERS_FILE)
     if not path.exists():
         return []
-    return [
-        line.strip()
-        for line in path.read_text(encoding="utf-8").splitlines()
-        if line.strip() and not line.strip().startswith("#")
-    ]
+    return _parse_senders(path.read_text(encoding="utf-8"))
 
 
 def _system_prompt(senders: list[str]) -> str:

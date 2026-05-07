@@ -67,7 +67,7 @@ mail-notifier/
 ├── classify.py              # Gemini 호출 → 4-class 분류 결과 반환
 ├── send_telegram.py         # Telegram sendMessage API 래퍼
 ├── main.py                  # entry point: fetch → classify → notify → 상태 저장
-├── senders.txt              # 중요 발신자 목록 (한 줄 1개 이메일)
+├── senders.txt              # (로컬 전용, gitignored) 중요 발신자 목록
 ├── last_seen_id.txt         # 마지막으로 처리한 메일 ID (자동 갱신)
 ├── requirements.txt
 ├── .env.example             # 환경 변수 템플릿
@@ -128,10 +128,15 @@ gh secret set TELEGRAM_CHAT_ID        --body "$YOUR_CHAT_ID"
 gh secret set GOOGLE_CREDENTIALS_JSON < credentials.json
 gh secret set GOOGLE_TOKEN_JSON       < token.json
 
+# (선택) 중요 발신자 목록을 secret으로 주입
+gh secret set IMPORTANT_SENDERS < senders.txt
+
 gh workflow run check-mail.yml   # 즉시 첫 실행
 ```
 
 이후 10분마다 자동 실행. Actions 탭에서 실행 기록 확인 가능.
+
+> **중요 발신자 추가 방법**: 로컬에서는 `senders.txt`를 편집하고, 클라우드에서는 `gh secret set IMPORTANT_SENDERS < senders.txt`로 secret을 갱신. 코드는 환경변수 → 파일 순으로 fallback. **개인 이메일 주소는 secret에만 저장**되어 public repo로 전환해도 노출되지 않음.
 
 ## 📊 Cost Breakdown
 
