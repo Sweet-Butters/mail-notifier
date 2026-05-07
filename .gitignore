@@ -5,3 +5,7 @@ token.json
 __pycache__/
 *.pyc
 .claude/
+*.swp
+.DS_Store
+imp.txt
+개요.txt
