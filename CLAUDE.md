@@ -36,3 +36,33 @@ gh workflow run check-mail.yml
 RUN=$(gh run list --workflow=check-mail.yml --limit 1 --json databaseId -q '.[0].databaseId')
 gh run view $RUN --log | grep -E "📨|✅|⏭|🔔|⚠️"
 ```
+
+## Cloud Run + Pub/Sub deploy (fast version, mail_fast/)
+- `gcloud run deploy --source=.` hangs without `--quiet` (interactive Y/n prompt)
+- Token JSON env: use `--env-vars-file=YAML` (not `--set-env-vars` — chokes on commas/colons in JSON)
+- New GCP projects need these IAM roles on Compute SA before source deploy: `roles/cloudbuild.builds.builder`, `roles/storage.objectAdmin`, `roles/artifactregistry.writer`, `roles/logging.logWriter`
+- `gcloud components install X` needs `--quiet` (else interactive prompt hangs background tasks)
+
+## Cross-project Gmail Pub/Sub
+- Gmail `users.watch(topicName=...)` requires the Pub/Sub topic to be in the **same GCP project as the OAuth client** — not the user's mail-account project
+- Workaround if billing blocked on owner project: create new OAuth client in a project-with-billing, user re-consents → new token.json that can reference cross-project Gmail mailbox
+
+## OAuth flow on WSL2 (manual code exchange when localhost callback unreliable)
+- PKCE requires `state` + `code_verifier` consistent across two invocations — persist via JSON to /tmp (pickle fails on OAuth2Session lambdas)
+- Set `OAUTHLIB_INSECURE_TRANSPORT=1` env var to allow http://localhost in oauthlib
+- Have user paste redirect URL from "site can't be reached" page; INCOGNITO browser avoids state-cache mismatches between attempts
+
+## GCS-backed state for Cloud Run (ephemeral compute)
+- Direct GCS edit (bypass bot, useful for bulk updates): `gcloud storage cp local.txt gs://bucket/path`
+- Read: `gcloud storage cat gs://bucket/path`
+- Cloud Run containers are ephemeral — never write state to local disk
+
+## Cloud Scheduler for auto-renewal
+- Idempotent endpoint + daily call = robust pattern (vs weekly with no buffer)
+- Free tier: 3 jobs per billing account
+- For Gmail watch (7-day expiration): daily call gives 6+ days buffer
+
+## GCP Monitoring vs Telegram for alerting
+- GCP Monitoring overcomplicated: new resource metrics take 10-15 min to register, `documentation` requires both `content` AND `mimeType`
+- Simpler pattern we use: have endpoint Telegram on failure (e.g., `/renew-watch` does this)
+- SMS notification channel mostly US/CA only — not useful for KR phone numbers
