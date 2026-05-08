@@ -21,13 +21,6 @@ from telegram_commands import process_commands
 LAST_SEEN_FILE = "last_seen_id.txt"
 BLOCKED_FILE = "blocked_senders.txt"
 MAX_FETCH = 20  # 한 번에 확인할 최신 메일 개수
-NOTIFY_CATEGORIES = {"면접", "합격여부", "중요인물"}
-
-CATEGORY_EMOJI = {
-    "면접": "🗓️",
-    "합격여부": "🎯",
-    "중요인물": "⭐",
-}
 
 
 def extract_email(sender_full: str) -> str:
@@ -83,8 +76,7 @@ def fetch_metadata(service, msg_id: str) -> dict:
     }
 
 
-def format_message(m: dict, category: str, reasoning: str) -> str:
-    emoji = CATEGORY_EMOJI.get(category, "📬")
+def format_message(m: dict, reasoning: str) -> str:
     subject = html.escape(m["subject"])
     sender = html.escape(m["from"])
     snippet = html.escape(m["snippet"][:300])
@@ -95,7 +87,7 @@ def format_message(m: dict, category: str, reasoning: str) -> str:
         if email else ""
     )
     return (
-        f"{emoji} <b>[{category}]</b> {subject}\n"
+        f"🔔 <b>{subject}</b>\n"
         f"From: {sender}\n"
         f"<i>판단: {reason}</i>\n\n"
         f"{snippet}"
@@ -167,16 +159,16 @@ def main() -> None:
             print(f"  ⚠️  [QUOTA] {meta['subject']}  → 분류 중단 ({e})")
             break
 
-        category = result["category"]
+        should_notify = result["notify"]
         reasoning = result["reasoning"]
         last_processed = msg_id
 
-        if category in NOTIFY_CATEGORIES:
-            notify(format_message(meta, category, reasoning))
+        if should_notify:
+            notify(format_message(meta, reasoning))
             notified += 1
-            print(f"  ✅ [{category}] {meta['subject']}  →  {reasoning}")
+            print(f"  🔔 [알림] {meta['subject']}  →  {reasoning}")
         else:
-            print(f"  ⏭️  [{category}] {meta['subject']}  →  {reasoning}")
+            print(f"  ⏭️  [무시] {meta['subject']}  →  {reasoning}")
 
     print(f"\n총 {len(new_ids)}개 중 {notified}개 알림, {blocked_count}개 차단 무시{', QUOTA 중단' if quota_hit else ''}.")
 
