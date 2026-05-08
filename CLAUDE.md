@@ -66,3 +66,36 @@ gh run view $RUN --log | grep -E "📨|✅|⏭|🔔|⚠️"
 - GCP Monitoring overcomplicated: new resource metrics take 10-15 min to register, `documentation` requires both `content` AND `mimeType`
 - Simpler pattern we use: have endpoint Telegram on failure (e.g., `/renew-watch` does this)
 - SMS notification channel mostly US/CA only — not useful for KR phone numbers
+
+## Multi-account GCS path scheme (mail_fast/)
+- `accounts.txt` — registry of registered emails
+- `accounts/<email>/{senders,watching,blocked,token,last_history_id}.txt`
+- `aliases.json` — short alias → full email mapping
+- `onboarding/<email>.json` — transient OAuth state (state + code_verifier) between `acc add` and `acc confirm`
+- Global: `language.txt`, `quota.json`
+
+## 2-step OAuth bot flow
+- `acc add EMAIL` → bot generates URL + saves state/code_verifier to GCS `onboarding/<email>.json`
+- User opens URL, completes consent, copies redirect URL from "site can't be reached" page
+- `acc confirm URL` → bot searches GCS `onboarding/*.json` by `state` query param to find matching email → fetch_token → save token to `accounts/<email>/token.json`
+- Always set `OAUTHLIB_INSECURE_TRANSPORT=1` for `http://localhost` callback
+
+## Sanitization checklist before public repo push
+- `grep -rn -E "PII patterns" --exclude-dir=__pycache__ --exclude-dir=.venv`
+- Common leaks: `*보안비번*` files (manual saves of credentials), institution emails in examples, specific event names
+- `.gitignore` patterns to add: `*보안비번*`, `*client_secret*`, `*.pkl`
+- Final verify: `git ls-files | grep -E "secret|cred|token"` after `git add -A`
+
+## Cloud Run env-vars-file YAML for multi-line JSON
+```yaml
+GOOGLE_OAUTH_CLIENT_JSON: |
+$(cat credentials.json | sed 's/^/  /')   # indent 2 spaces for YAML literal block
+```
+Use `--env-vars-file=YAML` instead of `--set-env-vars` when value contains `,` or `:`.
+
+## Test bot commands without phone (webhook simulation)
+```bash
+curl -X POST $SERVICE_URL/telegram/$SECRET \
+  -H "Content-Type: application/json" \
+  -d "{\"update_id\":999,\"message\":{\"chat\":{\"id\":$CHAT_ID,\"type\":\"private\"},\"from\":{\"id\":$CHAT_ID},\"date\":1700000000,\"text\":\"acc confirm http://localhost:8080/?state=...\"}}"
+```
