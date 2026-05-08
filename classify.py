@@ -83,8 +83,8 @@ def _system_prompt(senders: list[str], watching: list[str]) -> str:
 - 위 알림 기준 4개 중 어느 것에도 해당 안 됨
 
 🎯 <b>reasoning에 무엇이 trigger인지 명시</b>:
-- 발신자 매치: "중요 발신자 ctlearn@yonsei.ac.kr 매칭"
-- 키워드 매치: "기다리는 메일 항목 '와인' 키워드 매칭"
+- 발신자 매치: "중요 발신자 <email@domain> 매칭"
+- 키워드 매치: "기다리는 메일 항목 '<키워드>' 매칭"
 - 면접/합격 패턴: "면접 일정 안내 메일 패턴"
 - 무시 사유: "광고성 메일", "단체 공지" 등
 
@@ -141,9 +141,9 @@ if __name__ == "__main__":
             "body": "안녕하세요. 서류전형 합격을 축하드리며 2차 면접 일정을 아래와 같이 안내드립니다...",
         },
         {
-            "sender": '"시설처 설비팀" <equipment@yonsei.ac.kr>',
-            "subject": "2026학년도 하절기 냉방실시계획 안내",
-            "body": "교내 냉방시설 가동을 다음과 같이 안내드립니다...",
+            "sender": '"시설관리팀" <facility@example.com>',
+            "subject": "[공지] 하절기 냉방시설 운영 안내",
+            "body": "냉방시설 가동을 다음과 같이 안내드립니다...",
         },
     ]
     for s in samples:

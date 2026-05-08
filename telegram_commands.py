@@ -32,7 +32,7 @@ HELP = """🤖 <b>명령어</b> (슬래시 <code>/</code> 생략 가능)
 <code>remove EMAIL</code> — 제거
 
 <b>기다리는 메일</b>
-<code>watch DESCRIPTION</code> — 추가 (예: <code>watch 5기 인강 튜터 합격</code>)
+<code>watch DESCRIPTION</code> — 추가 (예: <code>watch 회사X 인턴 합격 안내</code>)
 <code>unwatch N</code> — 제거 (#번호 또는 정확한 텍스트)
 
 <b>차단 발신자</b>

@@ -1,5 +1,7 @@
 # 중요 발신자 이메일 목록 (한 줄에 하나, # 주석 가능)
-# 이 발신자한테서 오는 메일은 "중요인물"로 분류되어 알림됩니다.
-# Bot이 /add 명령으로 자동 편집함.
-
-ctlearn@yonsei.ac.kr    # 연세대 교수학습혁신센터(CTL) — 프리미엄 인강 5기 튜터 선정 관련
+# 이 발신자한테서 오는 메일은 'notify=true'로 분류되어 알림됩니다.
+# Bot이 /add EMAIL 명령으로 자동 편집함.
+#
+# 예시:
+#   hr@example.com    # 회사 X 채용팀
+#   advisor@somewhere.edu

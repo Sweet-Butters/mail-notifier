@@ -4,8 +4,9 @@
 >
 > AI-powered Gmail filter that classifies incoming mail and pushes only the important ones to Telegram, running 24/7 on free GitHub Actions cron.
 
+![Version](https://img.shields.io/badge/version-1.0.0-blue)
 ![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
-![Gemini](https://img.shields.io/badge/Gemini-2.5%20Flash%20Lite-4285F4?logo=google&logoColor=white)
+![Gemini](https://img.shields.io/badge/Gemini-2.5%20Flash-4285F4?logo=google&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-green)
 ![Cost](https://img.shields.io/badge/Cost-%240%2Fmonth-brightgreen)
 
@@ -181,6 +182,10 @@ gh workflow run check-mail.yml   # 즉시 첫 실행
 - **분류 프롬프트 (`classify.py`)** — "키워드만으로 판단하지 말 것" + "애매하면 무관으로" 두 룰을 명시해 노이즈를 능동적으로 떨궈냄. Gemini의 `response_mime_type="application/json"`으로 출력 형식 강제, 잘못된 카테고리는 안전망에서 `무관`으로 fallback.
 - **상태 관리 (`main.py`)** — 첫 실행 시 알림 없이 baseline만 잡아 "과거 받은편지함 전체에 알림 폭탄" 사고 방지.
 - **OAuth 처리 (`auth_gmail.py`)** — WSL2 환경 제약 때문에 `run_local_server`의 자동 브라우저 오픈을 끄고 콘솔에 URL 출력 → 사용자가 Windows 브라우저에서 인증하는 헤드리스 플로우.
+
+## 📋 Changelog
+
+버전별 변경 사항은 [CHANGELOG.md](CHANGELOG.md) 참조.
 
 ## 📄 License
 
