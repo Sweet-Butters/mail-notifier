@@ -43,7 +43,7 @@ jobs:
 
       - name: Commit state if changed
         run: |
-          git add last_seen_id.txt senders.txt watching.txt telegram_offset.txt 2>/dev/null || true
+          git add last_seen_id.txt senders.txt watching.txt blocked_senders.txt telegram_offset.txt 2>/dev/null || true
           if git diff --cached --quiet; then
             echo "No state change."
           else

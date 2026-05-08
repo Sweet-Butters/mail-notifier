@@ -18,22 +18,27 @@ load_dotenv()
 
 SENDERS_FILE = Path("senders.txt")
 WATCHING_FILE = Path("watching.txt")
+BLOCKED_FILE = Path("blocked_senders.txt")
 OFFSET_FILE = Path("telegram_offset.txt")
 
 API = f"https://api.telegram.org/bot{os.environ.get('TELEGRAM_TOKEN', '')}"
 
 HELP = """🤖 <b>명령어</b>
 
-<b>발신자 관리</b> (정확한 이메일 주소)
-/add EMAIL — 발신자 추가
-/remove EMAIL — 발신자 제거
+<b>중요 발신자</b> (정확한 이메일 주소)
+/add EMAIL — 추가
+/remove EMAIL — 제거
 
-<b>기다리는 메일 관리</b> (예상 키워드/내용)
+<b>기다리는 메일</b> (예상 키워드/내용)
 /watch DESCRIPTION — 추가 (예: <code>/watch 5기 인강 튜터 합격</code>)
 /unwatch N — 제거 (#번호 또는 정확한 텍스트)
 
+<b>차단 발신자</b> (분류 없이 즉시 무시)
+/block EMAIL — 차단 추가
+/unblock EMAIL — 차단 해제
+
 <b>조회</b>
-/list — 발신자 + 기다리는 메일 모두 보기
+/list — 모든 설정 한 번에 보기
 /status — 시스템 상태
 /help — 이 메뉴
 
@@ -119,6 +124,29 @@ def _write_watching(items: list[str]) -> None:
     WATCHING_FILE.write_text(WATCHING_HEADER + "\n" + body, encoding="utf-8")
 
 
+# --- blocked_senders.txt 헬퍼 ---
+
+BLOCKED_HEADER = (
+    "# 차단된 발신자 목록 (이 주소에서 오는 메일은 분류기 호출 없이 무시)\n"
+    "# Bot이 /block으로 추가, /unblock으로 해제\n"
+)
+
+
+def _read_blocked() -> list[str]:
+    if not BLOCKED_FILE.exists():
+        return []
+    return [
+        line.split("#")[0].strip().lower()
+        for line in BLOCKED_FILE.read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.strip().startswith("#")
+    ]
+
+
+def _write_blocked(items: list[str]) -> None:
+    body = "\n".join(items) + "\n" if items else ""
+    BLOCKED_FILE.write_text(BLOCKED_HEADER + "\n" + body, encoding="utf-8")
+
+
 # --- 명령 디스패치 ---
 
 
@@ -133,6 +161,7 @@ def _handle(text: str) -> tuple[str, bool]:
     if text == "/list":
         emails = _parsed_emails(_read_senders_lines())
         watch = _read_watching()
+        blocked = _read_blocked()
         out = []
         out.append(f"📋 <b>현재 추적 설정</b>\n")
         out.append(f"<b>👤 중요 발신자 ({len(emails)})</b>")
@@ -146,15 +175,23 @@ def _handle(text: str) -> tuple[str, bool]:
             out.extend(f"  #{i+1}. {w}" for i, w in enumerate(watch))
         else:
             out.append("  <i>(없음)</i>")
+        out.append("")
+        out.append(f"<b>🚫 차단 발신자 ({len(blocked)})</b>")
+        if blocked:
+            out.extend(f"  • <code>{e}</code>" for e in blocked)
+        else:
+            out.append("  <i>(없음)</i>")
         return "\n".join(out), False
 
     if text == "/status":
         emails = _parsed_emails(_read_senders_lines())
         watch = _read_watching()
+        blocked = _read_blocked()
         return (
             f"📊 <b>시스템 상태</b>\n"
             f"  중요 발신자: <b>{len(emails)}개</b>\n"
             f"  기다리는 메일: <b>{len(watch)}개</b>\n"
+            f"  차단 발신자: <b>{len(blocked)}개</b>\n"
             f"  cron 주기: <b>10분</b>\n"
             f"  분류 모델: Gemini 2.5 Flash Lite\n"
             f"  Repo: <a href=\"https://github.com/Sweet-Butters/mail-notifier\">Sweet-Butters/mail-notifier</a>"
@@ -216,6 +253,27 @@ def _handle(text: str) -> tuple[str, bool]:
             _write_watching(watch)
             return f"🗑 제거: <i>{arg}</i>\n현재 총 <b>{len(watch)}개</b>", True
         return f"ℹ️ 매칭되는 항목 없음. <code>/list</code>로 #번호 확인하세요.", False
+
+    # ----- 차단 발신자 -----
+    if text.startswith("/block "):
+        email = text[7:].strip().lower()
+        if "@" not in email or " " in email:
+            return f"⚠️ 이메일 형식이 아닙니다: <code>{email}</code>", False
+        blocked = _read_blocked()
+        if email in blocked:
+            return f"ℹ️ 이미 차단됨: <code>{email}</code>", False
+        blocked.append(email)
+        _write_blocked(blocked)
+        return f"🚫 차단 추가: <code>{email}</code>\n이 발신자의 메일은 분류기 호출 없이 즉시 무시됩니다.\n현재 총 <b>{len(blocked)}개</b>", True
+
+    if text.startswith("/unblock "):
+        email = text[9:].strip().lower()
+        blocked = _read_blocked()
+        if email not in blocked:
+            return f"ℹ️ 차단 목록에 없음: <code>{email}</code>", False
+        blocked.remove(email)
+        _write_blocked(blocked)
+        return f"♻️ 차단 해제: <code>{email}</code>\n현재 총 <b>{len(blocked)}개</b>", True
 
     return f"❓ 모르는 명령: <code>{text}</code>\n\n<code>/help</code> 로 도움말 확인", False
 

@@ -2,12 +2,15 @@
 
 첫 실행: 알림 없이 가장 최신 메시지 ID만 기록 (과거 메일 폭탄 방지).
 이후 실행: 기록된 ID 이후의 새 메일을 분류해서 "무관"이 아닌 것만 알림.
+차단된 발신자는 분류기 호출 없이 즉시 무시.
 """
 
 from __future__ import annotations
 
 import html
 import os.path
+import re
+from pathlib import Path
 
 from auth_gmail import get_service
 from classify import classify
@@ -15,6 +18,7 @@ from send_telegram import notify
 from telegram_commands import process_commands
 
 LAST_SEEN_FILE = "last_seen_id.txt"
+BLOCKED_FILE = "blocked_senders.txt"
 MAX_FETCH = 20  # 한 번에 확인할 최신 메일 개수
 NOTIFY_CATEGORIES = {"면접", "합격여부", "중요인물"}
 
@@ -23,6 +27,27 @@ CATEGORY_EMOJI = {
     "합격여부": "🎯",
     "중요인물": "⭐",
 }
+
+
+def extract_email(sender_full: str) -> str:
+    """'Name <email@domain>' 또는 'email@domain' → 'email@domain' (소문자)"""
+    m = re.search(r"<([^>]+@[^>]+)>", sender_full)
+    if m:
+        return m.group(1).strip().lower()
+    if "@" in sender_full:
+        return sender_full.strip().lower()
+    return ""
+
+
+def load_blocked_senders() -> set[str]:
+    p = Path(BLOCKED_FILE)
+    if not p.exists():
+        return set()
+    return {
+        line.split("#")[0].strip().lower()
+        for line in p.read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.strip().startswith("#")
+    }
 
 
 def read_last_seen() -> str:
@@ -63,11 +88,17 @@ def format_message(m: dict, category: str, reasoning: str) -> str:
     sender = html.escape(m["from"])
     snippet = html.escape(m["snippet"][:300])
     reason = html.escape(reasoning)
+    email = extract_email(m["from"])
+    block_hint = (
+        f"\n\n<i>잘못 잡혔으면 발신자 차단:</i> <code>/block {email}</code>"
+        if email else ""
+    )
     return (
         f"{emoji} <b>[{category}]</b> {subject}\n"
         f"From: {sender}\n"
         f"<i>판단: {reason}</i>\n\n"
         f"{snippet}"
+        f"{block_hint}"
     )
 
 
@@ -104,10 +135,18 @@ def main() -> None:
         print("새 메일 없음.")
         return
 
-    print(f"새 메일 {len(new_ids)}개 발견. 분류 시작.")
+    blocked = load_blocked_senders()
+    print(f"새 메일 {len(new_ids)}개 발견. 분류 시작. (차단 발신자: {len(blocked)}개)")
     notified = 0
+    blocked_count = 0
     for msg_id in reversed(new_ids):
         meta = fetch_metadata(service, msg_id)
+        sender_email = extract_email(meta["from"])
+        if sender_email and sender_email in blocked:
+            blocked_count += 1
+            print(f"  🚫 [차단] {meta['subject']}  ({sender_email})")
+            continue
+
         result = classify(meta["from"], meta["subject"], meta["snippet"])
         category = result["category"]
         reasoning = result["reasoning"]
@@ -119,7 +158,7 @@ def main() -> None:
         else:
             print(f"  ⏭️  [{category}] {meta['subject']}  →  {reasoning}")
 
-    print(f"\n총 {len(new_ids)}개 중 {notified}개 알림 전송.")
+    print(f"\n총 {len(new_ids)}개 중 {notified}개 알림, {blocked_count}개 차단 무시.")
     write_last_seen(msgs[0]["id"])
 
 
