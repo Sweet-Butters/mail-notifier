@@ -15,6 +15,7 @@ from pathlib import Path
 import quota
 from auth_gmail import get_service
 from classify import RateLimitError, classify
+from i18n import t
 from send_telegram import notify
 from telegram_commands import process_commands
 
@@ -82,14 +83,15 @@ def format_message(m: dict, reasoning: str) -> str:
     snippet = html.escape(m["snippet"][:300])
     reason = html.escape(reasoning)
     email = extract_email(m["from"])
+    judgment = t("alert_judgment", reason=reason)
     block_hint = (
-        f"\n\n<i>잘못 잡혔으면 발신자 차단:</i> <code>/block {email}</code>"
+        f"\n\n<i>{t('alert_block_hint')}</i> <code>/block {email}</code>"
         if email else ""
     )
     return (
         f"🔔 <b>{subject}</b>\n"
         f"From: {sender}\n"
-        f"<i>판단: {reason}</i>\n\n"
+        f"<i>{judgment}</i>\n\n"
         f"{snippet}"
         f"{block_hint}"
     )
@@ -150,11 +152,7 @@ def main() -> None:
             quota_hit = True
             q = quota.load_quota()
             if not q.get("alerted"):
-                notify(
-                    "⚠️ <b>Gemini API 한도 도달</b>\n\n"
-                    f"{quota.status_text()}\n\n"
-                    "남은 메일은 다음 cron에서 재시도됩니다. 한도는 UTC 00:00에 자동 리셋됩니다."
-                )
+                notify(t("quota_alert", status=quota.status_text()))
                 quota.mark_alerted()
             print(f"  ⚠️  [QUOTA] {meta['subject']}  → 분류 중단 ({e})")
             break

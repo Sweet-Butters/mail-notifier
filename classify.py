@@ -16,6 +16,7 @@ from google.genai import errors as genai_errors
 from google.genai import types
 
 import quota
+from i18n import t
 
 load_dotenv()
 
@@ -64,6 +65,7 @@ def _load_watching() -> list[str]:
 def _system_prompt(senders: list[str], watching: list[str]) -> str:
     senders_block = "\n".join(f"- {s}" for s in senders) if senders else "(없음)"
     watching_block = "\n".join(f"- {w}" for w in watching) if watching else "(없음)"
+    lang_directive = t("classifier_lang_directive")
     return f"""당신은 사용자가 놓치면 안 되는 중요한 이메일을 골라내는 분류기입니다.
 
 각 메일에 대해 **알림 보낼지(true) 말지(false)** 결정하고, 이유를 한 문장으로 설명하세요.
@@ -88,8 +90,10 @@ def _system_prompt(senders: list[str], watching: list[str]) -> str:
 - 면접/합격 패턴: "면접 일정 안내 메일 패턴"
 - 무시 사유: "광고성 메일", "단체 공지" 등
 
+{lang_directive}
+
 응답은 반드시 다음 JSON 형식으로만 답변하세요 (다른 설명 없이):
-{{"notify": <true|false>, "reasoning": "<한 문장 한국어 trigger/사유 설명>"}}"""
+{{"notify": <true|false>, "reasoning": "<한 문장 trigger/사유 설명>"}}"""
 
 
 def classify(sender: str, subject: str, body: str) -> dict:

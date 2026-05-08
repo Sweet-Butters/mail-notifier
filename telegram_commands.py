@@ -2,8 +2,8 @@
 
 매 cron 실행 시 main.py에서 process_commands() 호출.
 - 본인 chat_id에서 온 / 명령만 처리 (다른 사람 봇 발견해도 무시)
-- senders.txt / watching.txt를 직접 편집 (workflow가 변경분을 자동 commit)
-- 처리한 update_id는 telegram_offset.txt에 저장해서 중복 처리 방지
+- senders.txt / watching.txt / blocked_senders.txt를 직접 편집
+- 처리한 update_id는 telegram_offset.txt에 저장
 """
 
 from __future__ import annotations
@@ -14,7 +14,9 @@ from pathlib import Path
 import requests
 from dotenv import load_dotenv
 
+import i18n
 import quota
+from i18n import t
 
 load_dotenv()
 
@@ -25,31 +27,9 @@ OFFSET_FILE = Path("telegram_offset.txt")
 
 API = f"https://api.telegram.org/bot{os.environ.get('TELEGRAM_TOKEN', '')}"
 
-HELP = """🤖 <b>명령어</b> (슬래시 <code>/</code> 생략 가능)
-
-<b>중요 발신자</b>
-<code>add EMAIL</code> — 추가
-<code>remove EMAIL</code> — 제거
-
-<b>기다리는 메일</b>
-<code>watch DESCRIPTION</code> — 추가 (예: <code>watch 회사X 인턴 합격 안내</code>)
-<code>unwatch N</code> — 제거 (#번호 또는 정확한 텍스트)
-
-<b>차단 발신자</b>
-<code>block EMAIL</code> — 차단
-<code>unblock EMAIL</code> — 해제
-
-<b>조회</b>
-<code>list</code> — 모든 설정
-<code>status</code> — 시스템 상태
-<code>quota</code> — Gemini 사용량
-<code>help</code> — 이 메뉴
-
-<i>변경 사항은 다음 cron 실행(최대 10분)에 반영됩니다.</i>"""
-
 KNOWN_COMMANDS = {
     "add", "remove", "watch", "unwatch", "block", "unblock",
-    "list", "status", "help", "start", "quota",
+    "list", "status", "help", "start", "quota", "lang",
 }
 
 
@@ -111,9 +91,8 @@ def _parsed_emails(lines: list[str]) -> list[str]:
 # --- watching.txt 헬퍼 ---
 
 WATCHING_HEADER = (
-    "# 현재 기다리는 메일 항목 (한 줄에 하나)\n"
-    "# Bot이 /watch로 추가, /unwatch로 삭제\n"
-    "# 분류기가 이 내용/키워드를 적극적으로 매칭하여 면접/합격여부로 분류함\n"
+    "# 현재 기다리는 메일 항목 / Current watch list (한 줄에 하나 / one per line)\n"
+    "# Bot이 /watch로 추가, /unwatch로 삭제 / managed by bot\n"
 )
 
 
@@ -135,7 +114,7 @@ def _write_watching(items: list[str]) -> None:
 # --- blocked_senders.txt 헬퍼 ---
 
 BLOCKED_HEADER = (
-    "# 차단된 발신자 목록 (이 주소에서 오는 메일은 분류기 호출 없이 무시)\n"
+    "# 차단된 발신자 목록 / Blocked senders (분류기 호출 없이 즉시 무시 / skipped without classification)\n"
     "# Bot이 /block으로 추가, /unblock으로 해제\n"
 )
 
@@ -176,130 +155,133 @@ def _handle(text: str) -> tuple[str, bool]:
     text = text.strip()
 
     if text in ("/help", "/start"):
-        return HELP, False
+        return t("help"), False
 
     if text == "/quota":
         return quota.status_text(), False
+
+    # ----- 언어 -----
+    if text == "/lang":
+        return t("lang_current", lang=i18n.get_lang()), False
+
+    if text.startswith("/lang "):
+        new_lang = text[6:].strip().lower()
+        if i18n.set_lang(new_lang):
+            return t("lang_changed", lang=new_lang), True
+        return t("lang_invalid", lang=new_lang), False
 
     # ----- 통합 조회 -----
     if text == "/list":
         emails = _parsed_emails(_read_senders_lines())
         watch = _read_watching()
         blocked = _read_blocked()
-        out = []
-        out.append(f"📋 <b>현재 추적 설정</b>\n")
-        out.append(f"<b>👤 중요 발신자 ({len(emails)})</b>")
+        out = [t("list_header") + "\n"]
+        out.append(t("list_senders", count=len(emails)))
         if emails:
             out.extend(f"  • <code>{e}</code>" for e in emails)
         else:
-            out.append("  <i>(없음)</i>")
+            out.append(t("list_empty"))
         out.append("")
-        out.append(f"<b>👀 기다리는 메일 ({len(watch)})</b>")
+        out.append(t("list_watching", count=len(watch)))
         if watch:
             out.extend(f"  #{i+1}. {w}" for i, w in enumerate(watch))
         else:
-            out.append("  <i>(없음)</i>")
+            out.append(t("list_empty"))
         out.append("")
-        out.append(f"<b>🚫 차단 발신자 ({len(blocked)})</b>")
+        out.append(t("list_blocked", count=len(blocked)))
         if blocked:
             out.extend(f"  • <code>{e}</code>" for e in blocked)
         else:
-            out.append("  <i>(없음)</i>")
+            out.append(t("list_empty"))
         return "\n".join(out), False
 
     if text == "/status":
         emails = _parsed_emails(_read_senders_lines())
         watch = _read_watching()
         blocked = _read_blocked()
-        return (
-            f"📊 <b>시스템 상태</b>\n"
-            f"  중요 발신자: <b>{len(emails)}개</b>\n"
-            f"  기다리는 메일: <b>{len(watch)}개</b>\n"
-            f"  차단 발신자: <b>{len(blocked)}개</b>\n"
-            f"  cron 주기: <b>10분</b>\n"
-            f"  분류 모델: Gemini 2.5 Flash Lite\n"
-            f"  Repo: <a href=\"https://github.com/Sweet-Butters/mail-notifier\">Sweet-Butters/mail-notifier</a>"
+        return t(
+            "status_message",
+            senders=len(emails),
+            watching=len(watch),
+            blocked=len(blocked),
+            lang=i18n.get_lang(),
         ), False
 
     # ----- 발신자 -----
     if text.startswith("/add "):
         email = text[5:].strip()
         if "@" not in email or " " in email:
-            return f"⚠️ 이메일 형식이 아닙니다: <code>{email}</code>", False
+            return t("add_invalid", email=email), False
         lines = _read_senders_lines()
         if email in _parsed_emails(lines):
-            return f"ℹ️ 이미 등록된 발신자: <code>{email}</code>", False
+            return t("add_exists", email=email), False
         lines.append(email)
         _write_senders_lines(lines)
-        emails = _parsed_emails(lines)
-        return f"✅ 발신자 추가: <code>{email}</code>\n현재 총 <b>{len(emails)}개</b>", True
+        return t("add_success", email=email, count=len(_parsed_emails(lines))), True
 
     if text.startswith("/remove "):
         email = text[8:].strip()
         lines = _read_senders_lines()
         new_lines = [line for line in lines if _email_from_line(line) != email]
         if len(new_lines) == len(lines):
-            return f"ℹ️ 등록되지 않은 발신자: <code>{email}</code>", False
+            return t("remove_not_found", email=email), False
         _write_senders_lines(new_lines)
-        emails = _parsed_emails(new_lines)
-        return f"🗑 발신자 제거: <code>{email}</code>\n현재 총 <b>{len(emails)}개</b>", True
+        return t("remove_success", email=email, count=len(_parsed_emails(new_lines))), True
 
     # ----- 기다리는 메일 -----
     if text.startswith("/watch "):
         desc = text[7:].strip()
         if not desc:
-            return "⚠️ 사용법: <code>/watch 기다리는 메일 설명</code>", False
+            return t("watch_usage"), False
         if len(desc) > 300:
-            return f"⚠️ 너무 깁니다 ({len(desc)}자, 최대 300자)", False
+            return t("watch_too_long", length=len(desc), max_length=300), False
         watch = _read_watching()
         if desc in watch:
-            return f"ℹ️ 이미 등록됨: <i>{desc}</i>", False
+            return t("watch_exists", desc=desc), False
         watch.append(desc)
         _write_watching(watch)
-        return f"✅ #{len(watch)} 추가: <i>{desc}</i>\n현재 총 <b>{len(watch)}개</b>", True
+        return t("watch_added", n=len(watch), desc=desc, count=len(watch)), True
 
     if text.startswith("/unwatch "):
         arg = text[9:].strip()
         watch = _read_watching()
         if not watch:
-            return "ℹ️ 등록된 항목이 없습니다.", False
-        # 1) 숫자 #N
+            return t("unwatch_empty"), False
         if arg.isdigit():
             idx = int(arg) - 1
             if 0 <= idx < len(watch):
                 removed = watch.pop(idx)
                 _write_watching(watch)
-                return f"🗑 #{idx+1} 제거: <i>{removed}</i>\n현재 총 <b>{len(watch)}개</b>", True
-            return f"⚠️ #{arg} 없음 (현재 1~{len(watch)})", False
-        # 2) 정확한 텍스트
+                return t("unwatch_by_index", n=idx + 1, desc=removed, count=len(watch)), True
+            return t("unwatch_index_invalid", n=arg, max=len(watch)), False
         if arg in watch:
             watch.remove(arg)
             _write_watching(watch)
-            return f"🗑 제거: <i>{arg}</i>\n현재 총 <b>{len(watch)}개</b>", True
-        return f"ℹ️ 매칭되는 항목 없음. <code>/list</code>로 #번호 확인하세요.", False
+            return t("unwatch_by_text", desc=arg, count=len(watch)), True
+        return t("unwatch_not_found"), False
 
     # ----- 차단 발신자 -----
     if text.startswith("/block "):
         email = text[7:].strip().lower()
         if "@" not in email or " " in email:
-            return f"⚠️ 이메일 형식이 아닙니다: <code>{email}</code>", False
+            return t("block_invalid", email=email), False
         blocked = _read_blocked()
         if email in blocked:
-            return f"ℹ️ 이미 차단됨: <code>{email}</code>", False
+            return t("block_exists", email=email), False
         blocked.append(email)
         _write_blocked(blocked)
-        return f"🚫 차단 추가: <code>{email}</code>\n이 발신자의 메일은 분류기 호출 없이 즉시 무시됩니다.\n현재 총 <b>{len(blocked)}개</b>", True
+        return t("block_added", email=email, count=len(blocked)), True
 
     if text.startswith("/unblock "):
         email = text[9:].strip().lower()
         blocked = _read_blocked()
         if email not in blocked:
-            return f"ℹ️ 차단 목록에 없음: <code>{email}</code>", False
+            return t("unblock_not_found", email=email), False
         blocked.remove(email)
         _write_blocked(blocked)
-        return f"♻️ 차단 해제: <code>{email}</code>\n현재 총 <b>{len(blocked)}개</b>", True
+        return t("unblock_success", email=email, count=len(blocked)), True
 
-    return f"❓ 모르는 명령: <code>{text}</code>\n\n<code>/help</code> 로 도움말 확인", False
+    return t("unknown_command", text=text), False
 
 
 def process_commands() -> bool:

@@ -4,7 +4,8 @@
 >
 > AI-powered Gmail filter that classifies incoming mail and pushes only the important ones to Telegram, running 24/7 on free GitHub Actions cron.
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue)
+![Version](https://img.shields.io/badge/version-1.1.0-blue)
+![i18n](https://img.shields.io/badge/i18n-ko%20%7C%20en-yellow)
 ![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
 ![Gemini](https://img.shields.io/badge/Gemini-2.5%20Flash-4285F4?logo=google&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-green)
@@ -26,6 +27,7 @@
 - 🔐 **Secrets 분리** — 모든 토큰·credentials는 GitHub Secrets에 암호화 저장
 - 🎚 **개인화 가능** — `senders.txt`에 중요 인물(교수님, 면접관 등) 등록 시 해당 발신자 메일도 알림 대상
 - 📱 **Telegram 양방향** — 알림 받는 그 봇에게 `/add EMAIL`, `/list`, `/remove EMAIL` 명령으로 폰에서 직접 발신자 관리
+- 🌐 **i18n (한국어 / English)** — `lang en` / `lang ko`로 봇 UI·알림·분류기 reasoning 언어 전환
 
 ## 🏗 Architecture
 

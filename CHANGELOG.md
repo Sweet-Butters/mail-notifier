@@ -6,6 +6,22 @@
 
 ---
 
+## [1.1.0] — 2026-05-08
+
+### Added
+- 🌐 **i18n (한국어 / English) 지원** — Telegram bot UI, 알림 메시지, 분류기 reasoning 모두 다국어
+  - 새 명령 `lang ko|en` — 폰에서 즉시 언어 전환
+  - 기본값: `ko`. 영어 사용자는 `lang en` 한 번만 입력하면 모든 응답이 영어로
+- 📁 `i18n.py` — 단일 source-of-truth 문자열 모듈, 새 언어 추가 쉬움
+- 📁 `language.txt` — 현재 언어 저장 (자동 commit)
+
+### Changed
+- README badge: Version 1.0.0 → 1.1.0
+- HELP 메시지에 `lang` 명령 추가
+- `/status`에 현재 언어 표시
+
+---
+
 ## [1.0.0] — 2026-05-08
 
 첫 안정 릴리스. 폰에서 Telegram 봇만으로 모든 운영이 가능합니다.
@@ -92,6 +108,7 @@
 
 ---
 
+[1.1.0]: https://github.com/Sweet-Butters/mail-notifier/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/Sweet-Butters/mail-notifier/releases/tag/v1.0.0
 [0.5.0]: https://github.com/Sweet-Butters/mail-notifier/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/Sweet-Butters/mail-notifier/compare/v0.3.0...v0.4.0
