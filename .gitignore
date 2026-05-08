@@ -2,7 +2,6 @@
 .env
 credentials.json
 token.json
-senders.txt
 __pycache__/
 *.pyc
 .claude/

@@ -39,10 +39,7 @@ def _parse_senders(raw: str) -> list[str]:
 
 
 def _load_senders() -> list[str]:
-    """우선순위: 환경변수 IMPORTANT_SENDERS (GH Actions/secret) > 로컬 senders.txt 파일."""
-    env_val = os.environ.get("IMPORTANT_SENDERS", "").strip()
-    if env_val:
-        return _parse_senders(env_val)
+    """senders.txt에서 발신자 목록 로드. 봇이 이 파일을 직접 편집하므로 단일 source of truth."""
     path = Path(SENDERS_FILE)
     if not path.exists():
         return []

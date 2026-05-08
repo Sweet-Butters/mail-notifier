@@ -24,6 +24,7 @@
 - ⏰ **24/7 무료 운영** — GitHub Actions cron 10분 주기 (PC가 꺼져있어도 동작)
 - 🔐 **Secrets 분리** — 모든 토큰·credentials는 GitHub Secrets에 암호화 저장
 - 🎚 **개인화 가능** — `senders.txt`에 중요 인물(교수님, 면접관 등) 등록 시 해당 발신자 메일도 알림 대상
+- 📱 **Telegram 양방향** — 알림 받는 그 봇에게 `/add EMAIL`, `/list`, `/remove EMAIL` 명령으로 폰에서 직접 발신자 관리
 
 ## 🏗 Architecture
 
@@ -66,9 +67,11 @@ mail-notifier/
 ├── auth_gmail.py            # Gmail OAuth 인증 + Service 객체 생성
 ├── classify.py              # Gemini 호출 → 4-class 분류 결과 반환
 ├── send_telegram.py         # Telegram sendMessage API 래퍼
-├── main.py                  # entry point: fetch → classify → notify → 상태 저장
-├── senders.txt              # (로컬 전용, gitignored) 중요 발신자 목록
+├── telegram_commands.py     # 봇 양방향 명령 처리 (/list, /add, /remove, /status)
+├── main.py                  # entry point: fetch → classify → notify → 명령 처리
+├── senders.txt              # 중요 발신자 목록 (봇이 자동 갱신)
 ├── last_seen_id.txt         # 마지막으로 처리한 메일 ID (자동 갱신)
+├── telegram_offset.txt      # 마지막으로 처리한 Telegram update ID (자동 갱신)
 ├── requirements.txt
 ├── .env.example             # 환경 변수 템플릿
 ├── .gitignore
@@ -128,15 +131,24 @@ gh secret set TELEGRAM_CHAT_ID        --body "$YOUR_CHAT_ID"
 gh secret set GOOGLE_CREDENTIALS_JSON < credentials.json
 gh secret set GOOGLE_TOKEN_JSON       < token.json
 
-# (선택) 중요 발신자 목록을 secret으로 주입
-gh secret set IMPORTANT_SENDERS < senders.txt
-
 gh workflow run check-mail.yml   # 즉시 첫 실행
 ```
 
 이후 10분마다 자동 실행. Actions 탭에서 실행 기록 확인 가능.
 
-> **중요 발신자 추가 방법**: 로컬에서는 `senders.txt`를 편집하고, 클라우드에서는 `gh secret set IMPORTANT_SENDERS < senders.txt`로 secret을 갱신. 코드는 환경변수 → 파일 순으로 fallback. **개인 이메일 주소는 secret에만 저장**되어 public repo로 전환해도 노출되지 않음.
+## 🤖 Bot Commands (Telegram에서)
+
+알림 받는 봇에게 메시지로 명령 전송. 다음 cron 실행(최대 10분) 시 처리되어 봇이 응답 + repo에 자동 commit.
+
+| 명령 | 동작 |
+|---|---|
+| `/list` | 현재 중요 발신자 목록 보기 |
+| `/add EMAIL` | 발신자 추가 (예: `/add hr@somecorp.com`) |
+| `/remove EMAIL` | 발신자 제거 |
+| `/status` | 시스템 상태 (발신자 수, 모델, repo 링크) |
+| `/help` | 명령어 목록 |
+
+> **중요 발신자 추가 방법**: 폰의 Telegram 봇에 `/add EMAIL` 한 줄. 또는 로컬에서 `senders.txt` 직접 편집 후 push. 둘 다 가능.
 
 ## 📊 Cost Breakdown
 

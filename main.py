@@ -12,6 +12,7 @@ import os.path
 from auth_gmail import get_service
 from classify import classify
 from send_telegram import notify
+from telegram_commands import process_commands
 
 LAST_SEEN_FILE = "last_seen_id.txt"
 MAX_FETCH = 20  # 한 번에 확인할 최신 메일 개수
@@ -122,5 +123,14 @@ def main() -> None:
     write_last_seen(msgs[0]["id"])
 
 
+def run_telegram_commands() -> None:
+    """Telegram bot 명령 처리. 메일 체크와 독립적으로 실행."""
+    try:
+        process_commands()
+    except Exception as e:
+        print(f"⚠️ Telegram 명령 처리 실패: {e}")
+
+
 if __name__ == "__main__":
     main()
+    run_telegram_commands()
