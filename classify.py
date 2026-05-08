@@ -18,6 +18,7 @@ load_dotenv()
 
 MODEL = "gemini-2.5-flash-lite"
 SENDERS_FILE = "senders.txt"
+WATCHING_FILE = "watching.txt"
 CATEGORIES = ["면접", "합격여부", "중요인물", "무관"]
 
 _client: genai.Client | None = None
@@ -46,8 +47,17 @@ def _load_senders() -> list[str]:
     return _parse_senders(path.read_text(encoding="utf-8"))
 
 
-def _system_prompt(senders: list[str]) -> str:
+def _load_watching() -> list[str]:
+    """watching.txt에서 '기다리는 메일' 항목 로드. 분류기 프롬프트에 주입됨."""
+    path = Path(WATCHING_FILE)
+    if not path.exists():
+        return []
+    return _parse_senders(path.read_text(encoding="utf-8"))  # 같은 파싱 (주석/빈줄 제외)
+
+
+def _system_prompt(senders: list[str], watching: list[str]) -> str:
     senders_block = "\n".join(f"- {s}" for s in senders) if senders else "(없음)"
+    watching_block = "\n".join(f"- {w}" for w in watching) if watching else "(없음)"
     return f"""당신은 사용자가 놓치면 안 되는 중요한 이메일을 골라내는 분류기입니다.
 
 다음 4가지 카테고리 중 정확히 하나를 고르세요:
@@ -58,12 +68,16 @@ def _system_prompt(senders: list[str]) -> str:
 {senders_block}
 - **무관**: 위 어디에도 해당하지 않는 모든 메일. 광고, 학교 공지(수강신청/장학금/도서관/시설 안내 등), 뉴스레터, 시스템 알림, 마케팅, 영수증, 자동발송 메일 등.
 
+🎯 **사용자가 현재 기다리는 특정 메일** (이 내용·키워드와 직접 연관되면 우선적으로 면접/합격여부로 분류):
+{watching_block}
+
 판단 기준:
 1. 발신자, 제목, 본문 모두를 보고 종합적으로 판단하세요.
 2. "면접", "합격" 같은 키워드만 있다고 무조건 해당 카테고리가 아닙니다. 예: "면접 후기 공유 이벤트", "합격생 인터뷰 광고"는 "무관"입니다.
 3. 학교/기관에서 단체 발송하는 공지(시설/도서관/장학/수강 안내 등)는 거의 항상 "무관"입니다.
 4. 발신자 매칭은 `<email@domain>` 안의 이메일 주소를 보고 비교하세요. 단순 도메인 일치는 안 됩니다.
-5. 애매하면 "무관"으로 분류하세요 — 노이즈를 줄이는 것이 우선입니다.
+5. 위 "🎯 기다리는 메일" 항목과 매칭되는 메일은 적극적으로 적절 카테고리로 분류하고, reasoning에 어떤 watching 항목과 매칭되는지 명시하세요.
+6. 위 어디에도 해당하지 않으면 "무관"으로 분류 — 노이즈 차단 우선.
 
 응답은 반드시 다음 JSON 형식으로만 답변하세요 (다른 설명 없이):
 {{"category": "<위 4개 중 하나>", "reasoning": "<한 문장 한국어 판단 근거>"}}"""
@@ -76,6 +90,7 @@ def classify(sender: str, subject: str, body: str) -> dict:
         {"category": <CATEGORIES 중 하나>, "reasoning": <한 문장>}
     """
     senders = _load_senders()
+    watching = _load_watching()
     user_msg = (
         f"[발신자] {sender}\n"
         f"[제목] {subject}\n"
@@ -86,7 +101,7 @@ def classify(sender: str, subject: str, body: str) -> dict:
         model=MODEL,
         contents=user_msg,
         config=types.GenerateContentConfig(
-            system_instruction=_system_prompt(senders),
+            system_instruction=_system_prompt(senders, watching),
             response_mime_type="application/json",
             temperature=0.0,
         ),
