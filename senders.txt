@@ -1,7 +1,5 @@
 # 중요 발신자 이메일 목록 (한 줄에 하나, # 주석 가능)
-# 여기에 적힌 발신자한테서 메일이 오면 "중요인물"로 분류되어 알림이 갑니다.
-# senders.txt는 .gitignore되어 절대 push되지 않음.
-# 클라우드(GitHub Actions)에 반영하려면:  gh secret set IMPORTANT_SENDERS < senders.txt
+# 이 발신자한테서 오는 메일은 "중요인물"로 분류되어 알림됩니다.
+# Bot이 /add 명령으로 자동 편집함.
 
 ctlearn@yonsei.ac.kr    # 연세대 교수학습혁신센터(CTL) — 프리미엄 인강 5기 튜터 선정 관련
-foo@bar.com
