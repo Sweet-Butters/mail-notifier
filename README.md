@@ -4,6 +4,8 @@
 >
 > AI-powered Gmail filter that classifies incoming mail and pushes only the important ones to Telegram, running 24/7 on free GitHub Actions cron.
 
+> ⏱ **동작 시점 안내**: 본 시스템은 GitHub Actions cron(10분 주기)으로 동작합니다. 메일 알림과 봇 명령(`/add`, `/watch` 등)은 다음 cron 발화 시 처리되므로 **최대 10분 지연**될 수 있습니다. 실시간(1~5초) 알림은 Cloudflare Workers webhook 또는 Cloud Run + Gmail Pub/Sub로 확장 가능 — [Roadmap](#-limitations--roadmap) 참조.
+
 ![Version](https://img.shields.io/badge/version-1.1.0-blue)
 ![i18n](https://img.shields.io/badge/i18n-ko%20%7C%20en-yellow)
 ![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
