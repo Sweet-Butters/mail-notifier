@@ -14,6 +14,8 @@ from pathlib import Path
 import requests
 from dotenv import load_dotenv
 
+import quota
+
 load_dotenv()
 
 SENDERS_FILE = Path("senders.txt")
@@ -23,26 +25,32 @@ OFFSET_FILE = Path("telegram_offset.txt")
 
 API = f"https://api.telegram.org/bot{os.environ.get('TELEGRAM_TOKEN', '')}"
 
-HELP = """🤖 <b>명령어</b>
+HELP = """🤖 <b>명령어</b> (슬래시 <code>/</code> 생략 가능)
 
-<b>중요 발신자</b> (정확한 이메일 주소)
-/add EMAIL — 추가
-/remove EMAIL — 제거
+<b>중요 발신자</b>
+<code>add EMAIL</code> — 추가
+<code>remove EMAIL</code> — 제거
 
-<b>기다리는 메일</b> (예상 키워드/내용)
-/watch DESCRIPTION — 추가 (예: <code>/watch 5기 인강 튜터 합격</code>)
-/unwatch N — 제거 (#번호 또는 정확한 텍스트)
+<b>기다리는 메일</b>
+<code>watch DESCRIPTION</code> — 추가 (예: <code>watch 5기 인강 튜터 합격</code>)
+<code>unwatch N</code> — 제거 (#번호 또는 정확한 텍스트)
 
-<b>차단 발신자</b> (분류 없이 즉시 무시)
-/block EMAIL — 차단 추가
-/unblock EMAIL — 차단 해제
+<b>차단 발신자</b>
+<code>block EMAIL</code> — 차단
+<code>unblock EMAIL</code> — 해제
 
 <b>조회</b>
-/list — 모든 설정 한 번에 보기
-/status — 시스템 상태
-/help — 이 메뉴
+<code>list</code> — 모든 설정
+<code>status</code> — 시스템 상태
+<code>quota</code> — Gemini 사용량
+<code>help</code> — 이 메뉴
 
 <i>변경 사항은 다음 cron 실행(최대 10분)에 반영됩니다.</i>"""
+
+KNOWN_COMMANDS = {
+    "add", "remove", "watch", "unwatch", "block", "unblock",
+    "list", "status", "help", "start", "quota",
+}
 
 
 def _allowed_chat_id() -> int:
@@ -150,12 +158,28 @@ def _write_blocked(items: list[str]) -> None:
 # --- 명령 디스패치 ---
 
 
+def _normalize(text: str) -> str | None:
+    """슬래시 옵션화 + 알려진 명령만 통과. None이면 무시할 메시지."""
+    text = text.strip()
+    if not text:
+        return None
+    parts = text.split(maxsplit=1)
+    cmd = parts[0].lstrip("/").lower()
+    arg = parts[1] if len(parts) > 1 else ""
+    if cmd not in KNOWN_COMMANDS:
+        return None
+    return f"/{cmd}" + (f" {arg}" if arg else "")
+
+
 def _handle(text: str) -> tuple[str, bool]:
     """명령어 처리. (응답, 파일 변경됨) 반환."""
     text = text.strip()
 
     if text in ("/help", "/start"):
         return HELP, False
+
+    if text == "/quota":
+        return quota.status_text(), False
 
     # ----- 통합 조회 -----
     if text == "/list":
@@ -313,15 +337,16 @@ def process_commands() -> bool:
         if chat_id != allowed:
             print(f"⛔ 허용 안 된 chat_id에서 메시지 무시: {chat_id}")
             continue
-        text = msg.get("text", "").strip()
-        if not text or not text.startswith("/"):
+        raw = msg.get("text", "").strip()
+        normalized = _normalize(raw)
+        if not normalized:
             continue
 
-        reply, changed = _handle(text)
+        reply, changed = _handle(normalized)
         _send(reply, chat_id)
         if changed:
             file_changed = True
-        print(f"  📨 명령 처리: {text!r}")
+        print(f"  📨 명령 처리: {raw!r}  →  {normalized}")
 
     _write_offset(last_id)
     return file_changed

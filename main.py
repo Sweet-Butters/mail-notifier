@@ -12,8 +12,9 @@ import os.path
 import re
 from pathlib import Path
 
+import quota
 from auth_gmail import get_service
-from classify import classify
+from classify import RateLimitError, classify
 from send_telegram import notify
 from telegram_commands import process_commands
 
@@ -139,17 +140,36 @@ def main() -> None:
     print(f"새 메일 {len(new_ids)}개 발견. 분류 시작. (차단 발신자: {len(blocked)}개)")
     notified = 0
     blocked_count = 0
+    last_processed = None
+    quota_hit = False
+
     for msg_id in reversed(new_ids):
         meta = fetch_metadata(service, msg_id)
         sender_email = extract_email(meta["from"])
         if sender_email and sender_email in blocked:
             blocked_count += 1
+            last_processed = msg_id
             print(f"  🚫 [차단] {meta['subject']}  ({sender_email})")
             continue
 
-        result = classify(meta["from"], meta["subject"], meta["snippet"])
+        try:
+            result = classify(meta["from"], meta["subject"], meta["snippet"])
+        except RateLimitError as e:
+            quota_hit = True
+            q = quota.load_quota()
+            if not q.get("alerted"):
+                notify(
+                    "⚠️ <b>Gemini API 한도 도달</b>\n\n"
+                    f"{quota.status_text()}\n\n"
+                    "남은 메일은 다음 cron에서 재시도됩니다. 한도는 UTC 00:00에 자동 리셋됩니다."
+                )
+                quota.mark_alerted()
+            print(f"  ⚠️  [QUOTA] {meta['subject']}  → 분류 중단 ({e})")
+            break
+
         category = result["category"]
         reasoning = result["reasoning"]
+        last_processed = msg_id
 
         if category in NOTIFY_CATEGORIES:
             notify(format_message(meta, category, reasoning))
@@ -158,8 +178,11 @@ def main() -> None:
         else:
             print(f"  ⏭️  [{category}] {meta['subject']}  →  {reasoning}")
 
-    print(f"\n총 {len(new_ids)}개 중 {notified}개 알림, {blocked_count}개 차단 무시.")
-    write_last_seen(msgs[0]["id"])
+    print(f"\n총 {len(new_ids)}개 중 {notified}개 알림, {blocked_count}개 차단 무시{', QUOTA 중단' if quota_hit else ''}.")
+
+    # 처리한 마지막 메일 ID로 baseline 갱신 (quota 중단 시 부분 진행만 저장)
+    if last_processed:
+        write_last_seen(last_processed)
 
 
 def run_telegram_commands() -> None:

@@ -4,3 +4,4 @@
 # 클라우드(GitHub Actions)에 반영하려면:  gh secret set IMPORTANT_SENDERS < senders.txt
 
 ctlearn@yonsei.ac.kr    # 연세대 교수학습혁신센터(CTL) — 프리미엄 인강 5기 튜터 선정 관련
+foo@bar.com

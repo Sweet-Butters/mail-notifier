@@ -12,14 +12,21 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from google import genai
+from google.genai import errors as genai_errors
 from google.genai import types
+
+import quota
 
 load_dotenv()
 
-MODEL = "gemini-2.5-flash-lite"
+MODEL = "gemini-2.5-flash"
 SENDERS_FILE = "senders.txt"
 WATCHING_FILE = "watching.txt"
 CATEGORIES = ["면접", "합격여부", "중요인물", "무관"]
+
+
+class RateLimitError(Exception):
+    """Gemini API 한도 도달."""
 
 _client: genai.Client | None = None
 
@@ -97,15 +104,21 @@ def classify(sender: str, subject: str, body: str) -> dict:
         f"[본문 일부]\n{body[:1500]}"
     )
 
-    response = _get_client().models.generate_content(
-        model=MODEL,
-        contents=user_msg,
-        config=types.GenerateContentConfig(
-            system_instruction=_system_prompt(senders, watching),
-            response_mime_type="application/json",
-            temperature=0.0,
-        ),
-    )
+    try:
+        response = _get_client().models.generate_content(
+            model=MODEL,
+            contents=user_msg,
+            config=types.GenerateContentConfig(
+                system_instruction=_system_prompt(senders, watching),
+                response_mime_type="application/json",
+                temperature=0.0,
+            ),
+        )
+        quota.increment()
+    except genai_errors.ClientError as e:
+        if e.code == 429 or "RESOURCE_EXHAUSTED" in str(e):
+            raise RateLimitError(str(e)) from e
+        raise
 
     result = json.loads(response.text)
     if result.get("category") not in CATEGORIES:
