@@ -1,7 +1,4 @@
-# 현재 기다리는 메일 항목 (한 줄에 하나)
-# Bot이 /watch DESCRIPTION 명령으로 추가, /unwatch N으로 삭제
-# 분류기가 이 키워드/내용을 적극적으로 매칭하여 알림 결정함
-#
-# 예시:
-#   회사X 인턴 합격 안내
-#   학회 발표 일정 확정
+# 현재 기다리는 메일 항목 / Current watch list (한 줄에 하나 / one per line)
+# Bot이 /watch로 추가, /unwatch로 삭제 / managed by bot
+
+2026년 3학기 중국어회화 수업
